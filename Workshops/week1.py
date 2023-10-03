@@ -1,7 +1,7 @@
 class webPage():
-    def __init__(self, ):
-
-        return
+    def __init__(self, selfURL: str, linkURLs: list):
+        self.selfURL = selfURL
+        self.linkURLs = linkURLs
     
 
 
