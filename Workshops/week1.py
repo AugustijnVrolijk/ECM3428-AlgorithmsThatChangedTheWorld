@@ -8,7 +8,7 @@ class webPage():
             self.rank = 1/len(self.linkURLs)
         else:
             self.rank = 0
-            
+
 def calculateRank():
     return
 
@@ -22,6 +22,21 @@ def calculateTransitionMatrix(links:list):
         for link in page.linkURLs:
             TM[page.selfURL][link.selfURL] = page.rank
     return TM 
+
+def MatrixMultiplication(matrix1,matrix2):
+    if not checkValidMatrix(matrix1) and not checkValidMatrix(matrix2):
+        print("error multiplying matrices\n %f%f".format(matrix1,matrix2))
+        exit
+    
+    return
+
+def checkValidMatrix(matrix:list):
+    length = len(matrix[0])
+    for vector in matrix:
+        if length != vector:
+            return False
+        length = len(vector)
+    return True
 
 def setup():
     page1 = webPage(1)
