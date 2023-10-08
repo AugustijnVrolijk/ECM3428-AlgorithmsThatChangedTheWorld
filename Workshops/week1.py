@@ -23,11 +23,26 @@ def calculateTransitionMatrix(links:list):
             TM[page.selfURL][link.selfURL] = page.rank
     return TM 
 
+def ZerosMatrixOfSize(columnSize, rowSize):
+    
+    ZerosMatrix = []
+    for i in range(columnSize):
+        ZerosMatrix.append([0]*rowSize)
+    return ZerosMatrix
+
 def MatrixMultiplication(matrix1,matrix2):
+
     if not checkValidMatrix(matrix1) and not checkValidMatrix(matrix2):
-        print("error multiplying matrices\n %f%f".format(matrix1,matrix2))
+        print("error multiplying matrices, they are not valid matrices\n %f%f".format(matrix1,matrix2))
         exit
     
+    if len(matrix1) != len(matrix1[0]):
+        print("error multiplying matrices, they are not valid with each other\n %f%f".format(matrix1,matrix2))
+    
+    multipliedMatrix = ZerosMatrixOfSize(len(matrix1), len(matrix2[0]))
+    for i in range(len(multipliedMatrix)):
+        for j in range(len(multipliedMatrix[0])):
+            break
     return
 
 def checkValidMatrix(matrix:list):
