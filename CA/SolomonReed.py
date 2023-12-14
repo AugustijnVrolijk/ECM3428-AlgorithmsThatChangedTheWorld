@@ -1,3 +1,5 @@
+from itertools import combinations
+
 """
 lagrangePolgen: generates a lagrange polynomials for a list of points, with 1 point specified as the unit point
 for a set of n points, there are n lagrange polynomials, where each one has x intercept at all but one of n points,
@@ -77,7 +79,7 @@ l3 = c3(x-1)(x-2), where l3 = 1 at x = 3
 
 l = 3l1 + 7l2 + 4l3
 
-inputs: list of n numbers to find lagrange polynomial to (x values are assumed to be 0, ..., n-1)
+inputs: list of n points to find lagrange polynomial each point is a tuple (x,y)
 
 returns: lagrange interpolating polynomial
 """
@@ -88,13 +90,16 @@ def calcPol(list:list) -> list:
 
     #x values needed to calculate lagrange polynomials
     roots = []
-    for i in range(len(list)):
-        roots.append(i)
+    for point in list:
+        roots.append(point[0])
 
-    for index, int in enumerate(list):
-        temp = lagrangePolGen(index, roots) #calculate lagrange polynomial for specifc unit point
+    for point in list:
+        temp = lagrangePolGen(point[0], roots) #calculate lagrange polynomial for specifc unit point
         for index in range(len(temp)):
-            polynomial[index] += temp[index]*int #lagrange interpolating polynomial = lagrange polynomial for each point * y value 
+            polynomial[index] += temp[index]*point[1] #lagrange interpolating polynomial = lagrange polynomial for each point * y value 
+    
+    for i in range(len(polynomial)):
+        polynomial[i] = round(polynomial[i],9) #rounded to remove floating point inaccuracies, needed for the decoder
 
     return polynomial
 
@@ -111,10 +116,11 @@ def calcParityChars(polynomial:list, messageLen: int, codeLen: int) -> list:
     for j in range(codeLen):
         x = messageLen + j #message represents x values 0 -n-1, therefore calculate parity char from n onwards
         tempBit = 0
-        for index, coefficient in enumerate(polynomial):
-            tempBit += coefficient*(x**(len(polynomial)-index)) #calculate y value for specified x value based on polynomial
-
-        parityBits.append(int(tempBit)) #convert to int to remove floating point inaccuracies 
+        order = 1
+        for coefficient in polynomial:
+            tempBit += coefficient*(x**(len(polynomial)-order)) #calculate y value for specified x value based on polynomial
+            order += 1
+        parityBits.append(round(tempBit)) #round to remove floating point inaccuracies 
 
     return parityBits
 
@@ -127,11 +133,21 @@ inputs: message - message of length < blocklen to encode
 
 returns: encoded message
 """
-def solomonEncoder(message: list, blockLen: int) -> list:
+def solomonEncoder(message: list, blockLen: int, isWord:bool = False) -> list:
+
+    if isWord:
+        temp = []
+        for letter in message:
+            temp.append(ord(letter))
+        message = temp
 
     codeLen = blockLen-len(message) #length of added parity char, more means a safer more protected message
 
-    polynomial = calcPol(message)
+    messagePoints = [] #convert each char in a message into a point, value is y value, order is x value
+    for i in range(len(message)):
+        messagePoints.append((i,message[i]))
+
+    polynomial = calcPol(messagePoints)
     parityChars = calcParityChars(polynomial, len(message), codeLen)
     
     encodedMessage = message
@@ -139,6 +155,26 @@ def solomonEncoder(message: list, blockLen: int) -> list:
         encodedMessage.append(char)
     
     return encodedMessage
+
+"""
+calcParityChars: calculates parity characters based on a polynomial defined by the message to add to the message
+
+inputs: polynomial - list of coefficients, position and length determine order, i.e [1,-5,3.5,2] = x^3 -5x^2 + 3.5x + 2
+        messageLen - message length n
+returns: list of parity characters to add to message
+"""
+def calcOriginalMessage(polynomial:list, messageLen: int) -> list:
+    message = []
+    for x in range(messageLen):
+        tempBit = 0
+        order = 1
+        for coefficient in polynomial:
+            tempBit += coefficient*(x**(len(polynomial)-order)) #calculate y value for specified x value based on polynomial
+            order += 1
+        message.append(round(tempBit)) #round to remove floating point inaccuracies 
+
+    return message
+
 
 """
 solomonDecoder: returns original message from an encoded message, reverts errors, 
@@ -152,25 +188,104 @@ ascertains original message from the most popular polynomial to revert errors.
 
 inputs: encodedMessage: Reed-solomon encoded message
         messageLen: length of the actual message
+        isWord: boolean if message is array of numbers or a string
 
 returns: Original message
 """
-def solomonDecoder(encodedMessage: list, messageLen) -> list:
+def solomonDecoder(encodedMessage: list, messageLen, isWord:bool = False) -> list:
     
-    possiblePol = {}
-    for i in range(len(encodedMessage)-messageLen):
-        
-    message = []
+    messagePoints = [] #convert each char in a message into a point, value is y value, order is x value
+    for i in range(len(encodedMessage)):
+        messagePoints.append((i,encodedMessage[i]))
 
+    possiblePol = {}
+    possibleCombinations = list(combinations(messagePoints, messageLen)) #find all combinations of potential messages
+
+    """
+    for every possible message combination, calculate its lagrange interpolating polynomial, if a message has no error each subset
+    will result in the same polynomial. Counting them results in the most probable correct polynomial to correct potential errors
+    """
+    for possible in possibleCombinations:
+        pol = tuple(calcPol(possible))
+        if pol in possiblePol.keys():
+            possiblePol[pol] += 1
+            continue
+        possiblePol[pol] = 1
+    
+    polynomial = max(possiblePol, key=possiblePol.get)
+    message = calcOriginalMessage(polynomial, messageLen)
+
+    if isWord:
+        temp = ""
+        for i in range(len(message)):
+            temp += chr(message[i])
+        message = temp
 
     return message
 
 def main():
-    message = [1,5,2,3]
-    encodedMessage = solomonEncoder(message, 7)
-    print(encodedMessage)
-    corruptedEncodedMessage = [3,5,2,4,76,305,840]
+    message = [1,5,2,3,7]
+    encodedMessage = solomonEncoder(message, 8)
+    print(encodedMessage) 
+    #encoded message becomes  [1, 5, 2, 3, 7, 1, -40, -153]
 
+    corruptedEncodedMessage = [1, 5, 6, 3, 7, 1, -37, -153]
+    #corrupted in two places, 2 becomes 6, -40 becomes -37
+
+    decodedMessage = solomonDecoder(corruptedEncodedMessage,5)
+    print(decodedMessage)
+    #decoded message is [1, 5, 2, 3, 7] which is the original
+    """
+    64-bit solomon reed encoding, of which 24 are needed as parity bits to protect up to 16 contiguous bit flips in the best case 
+    along 2 integers, or 2 bits in the worst case.
+    this is a (5,3) (message length, parity char) or (40,64) (messagelength, codelength) solomon-reed encoded 
+    """
+
+    message = "Hello"
+    encodedMessage = solomonEncoder(message, 8, True)
+    print(encodedMessage)
+    #encoded message becomes  [72, 101, 108, 108, 111, 122, 141, 163]
+
+    corruptedEncodedMessage = [72, 101, 108, 150, 111, 122, 3, 163]
+    #corrupted in two places, 108 becomes 150, 141 becomes 3
+
+    decodedMessage = solomonDecoder(corruptedEncodedMessage,5,True)
+    print(decodedMessage)
+    #decoded message is "Hello" which is the original
+    """
+    64-bit solomon reed encoding, of which 24 are needed as parity bits to protect up to 16 contiguous bit flips in the best case 
+    along 2 character, or 2 bits in the worst case.
+    this is a (5,3) (message length, parity char) or (40,64) (messagelength, codelength) solomon-reed encoded 
+    """
+
+    message = "Hello world"
+    encodedMessage = solomonEncoder(message, 16, True)
+    print(encodedMessage)
+    #encoded message becomes  [72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 41237, 421778, 2392511, 9906455, 33388952]
+
+    corruptedEncodedMessage = [72, 101, 108, 108, 111, 32, 119, 111, 114, 150, 100, 41237, 421778, 2392511, 9906455, 33388952]
+    #corrupted in one places, 108 becomes 150
+
+    decodedMessage = solomonDecoder(corruptedEncodedMessage,11,True)
+    print(decodedMessage)
+    #decoded message is "Hello worh " which is not the original
+    """
+    #This is probably due to rounding errors at high numbers, i'm rounding to 9 decimal places, whereas the lagrange polynomials for a sentence
+    of 11 characters is of order 10. Therefore has a x^10 variable, when multiplied by large parity chars it is probably messing with
+    the rounding.
+
+    In actually implemented Reed-solomon codes use galois fields to work under finite field arithmetic, usually a Galois field of 2^8, or 256
+    this overcomes the obstacle of floating point inaccuracies and rounding errors
+    This also ensures every encoded parity character remains a normal ASCII Character, unlike some I generated when encoding "Hello world", 
+    where the highest reached 33388952, which would need at least 25 bits to encode, therefore 32 when encoded as a long long. This would make
+    the spacial efficacy of this encoding quite poor compared to a regular 8 bit char
+    
+
+    128-bit solomon reed encoding, of which 40 are needed as parity bits to protect up to 24 contiguous bit flips in the best case 
+    along 3 characters, or 3 bits in the worst case. Would need to work under a galois field in order to work
+    this is a (11,5) (message length, parity char) or (88,40) (messagelength, codelength) solomon-reed encoded 
+    """
+    
 
 
 if __name__ == "__main__":
