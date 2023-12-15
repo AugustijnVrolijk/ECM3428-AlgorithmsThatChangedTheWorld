@@ -88,12 +88,84 @@ def vectorAddition(x1, x2, D):
 
     returns: x3 The addition of both vectors
     """
-    x3 = []
+    x3 = zeros(D)
     for i in range(D):
-        x3.append([])
         x3[i] = x1[i] + x2[i]
     
     return x3
+
+def vectorSubstraction(x1, x2, D):
+    """
+    for 2 vectors, x1 and x2 returns their sum
+
+    D is the number of dimensions in the vectors
+
+    returns: x3 The addition of both vectors
+    """
+    x3 = zeros(D)
+    for i in range(D):
+        x3[i] = x1[i] - x2[i]
+    
+    return x3
+
+def centroid(D, simplex):
+    c = zeros(D)
+    for v in simplex[:1]:
+        c = vectorAddition(c, v[1])
+    c = c/D
+    return c
+
+def reflection(func, Centroid, simplex, a=1):
+    """
+    gives a reflected point R from the worst point in the simplex around a centroid
+
+    Arguments:
+    Centroid : central vector point
+    simplex : simplex with 3 vector point, in order from best to worst so simplex[-1] is the worst point
+    a : scaling for the reflection, default is 1, but can be smaller: 0 < a < 1
+    returns: reflected point R
+    """
+    
+    D = len(Centroid)
+    R = vectorAddition(Centroid, (a*vectorSubstraction(Centroid, simplex[-1], D)), D)
+    fOfR = func(R)
+
+    return fOfR, R
+
+def expansion(func, Centroid, simplex, Lambda=2):
+    """
+    gives an expanded point R from the worst point in the simplex around a centroid
+
+    Arguments:
+    Centroid : central vector point
+    simplex : simplex with 3 vector point, in order from best to worst so simplex[-1] is the worst point
+    lambda : scaling for the expansion, default is 2, but can be larger: lambda > 1
+    returns: expanded point R
+    """
+    
+    D = len(Centroid)
+    E = vectorAddition(Centroid, (Lambda*vectorSubstraction(Centroid, simplex[-1][1], D)), D)
+    fOfE = func(E)
+
+    return fOfE, E
+
+def contraction(func, Centroid, simplex, sigma = 0.5, R = None):
+    if R == None:
+        fOfR, R = reflection(func, Centroid, simplex) 
+    
+    D = len(centroid)
+    comp = sigma*(vectorSubstraction(Centroid, simplex[-1][1], D))
+    M1 = vectorSubstraction(Centroid, simplex[-1][1], D)
+    M2 = vectorAddition(Centroid, simplex[-1][1], D)
+    fOfM1 = func(M1)
+    fOfM2 = func(M2)
+
+    if fOfM1 < fOfM2:
+        return fOfM1, M1
+    return fOfM2, M2
+
+def shrink():
+    return
 
 def neldermead(x0, func, tolx=1e-3, tolf=1e-3, Niter=1000, draw=True, interact=True):
     """
@@ -141,7 +213,7 @@ def neldermead(x0, func, tolx=1e-3, tolf=1e-3, Niter=1000, draw=True, interact=T
             draw_simplex(simplex, colours)
         maybe_wait(interact)
 
-        #[W, G, B] = 0, 1, 2
+        #[B, G, W] = 0, 1, 2
         simplex = sorted(simplex, key=lambda s: s[0])
         print (simplex[0]) # Print the best point
 
@@ -151,19 +223,27 @@ def neldermead(x0, func, tolx=1e-3, tolf=1e-3, Niter=1000, draw=True, interact=T
         
         iterations +=1
 
-        #*** Task 1 ***#
         #calculate centroid
-        c = zeros(D)
-        for v in simplex[1:]:
-            c += v[1]
-        c /=D
+        c = centroid(D, simplex)
+
         x = c + (c - simplex[0][1])
         simplex[0] = (func(x), x)
         
         
-        #*** Task 2 ***#
-        
-        
+        fOfR, R = reflection(c, simplex)
+        if fOfR < simplex[1][0]:
+            fOfE, E = expansion(c,simplex)
+            fOfE = func(E)
+            if fOfE < fOfR:
+                simplex[-1] = (fOfE, E)
+            else:
+                simplex[-1] = (fOfR, R)
+        else:
+            fOfContr, Contr = contraction(func, c, simplex, R = R)
+            if fOfContr < simplex[-1][0]:
+                simplex[-1] = (fOfContr, Contr)
+            else:
+                shrink(c, simplex)
 
         break #Uncomment this line after you write the code for task 2
         #*** End of Task 2 ***#
@@ -175,3 +255,4 @@ if __name__ == "__main__":
     x0 = asarray([-1.0, 1.0])
     neldermead(x0, rosen, draw=True, interact=True)  # interact=True - if run code in an iterative way
     maybe_wait(True)
+
